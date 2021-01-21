@@ -1,5 +1,5 @@
 # monitor
-watches every file if it got manually modified then logs it with timestamp and path ( needs root ) ( paths are somewhat buggy but you can see the path
+watches every file ( on the whole system ), if it got manually modified then logs it with timestamp and path ( needs root ) ( paths are somewhat buggy but you can see the path
 need regular expression to fix that
 
 
