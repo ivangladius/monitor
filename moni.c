@@ -24,7 +24,8 @@
 
 #define BUF_LEN ( (sizeof(struct inotify_event) + NAME_MAX + 1))
 
-static void display_event( struct inotify_event *, int * , char *[]);
+void log_operation(const char *text, struct inotify_event *i, int *t_fd, char **fullpath);
+void display_event( struct inotify_event *, int * , char *[]);
 
 void handler( int sig )
 {
@@ -42,7 +43,7 @@ int main()
 	FILE *check = popen("cat /proc/sys/fs/inotify/max_user_watches", "r");
 	if ( !check ) handle("popen check");
 	char check_buffer[256];
-	fread(check_buffer, sizeof(char), sizeof(check), check);
+	fread(check_buffer, sizeof(char), sizeof(check_buffer), check);
 	printf("check_buffer: %s\n", check_buffer);
 	if ( atoi(check_buffer) < 100000 )
 		system("echo '100000' > /proc/sys/fs/inotify/max_user_watches");
@@ -113,7 +114,7 @@ int main()
 	// add watch for every directory
 
 	int x = 1;
-	while ( p = strtok(NULL, "\n") )
+	while ((p = strtok(NULL, "\n")))
 	{
 		if ( strstr(p, "bin") )
 			wd[x] = inotify_add_watch(noty_fd, p,  IN_ATTRIB | IN_DELETE | IN_CREATE);
@@ -159,82 +160,39 @@ int main()
 	exit(EXIT_SUCCESS);
 }
 
-static void display_event( struct inotify_event *i, int *t_fd, char **fullpath )
-{
-
-	time_t cur;
-	cur = time(NULL);
-	char path_buffer[4096];
-
-	// file changed
-	if ( i->mask & IN_MODIFY )
-	{
-		strcat(path_buffer, fullpath[i->wd]);
-		strcat(path_buffer, "/");
-		strcat(path_buffer, i->name);
-		dprintf(*t_fd, "####################\n%s\n\nfile %s: modified\n\n####################\n", ctime(&cur), path_buffer);
-	}
-	// close with write 
-	if ( i->mask & IN_CLOSE_NOWRITE )
-	{
-		strcat(path_buffer, fullpath[i->wd]);
-		strcat(path_buffer, "/");
-		strcat(path_buffer, i->name);
-		dprintf(*t_fd, "####################\n%s\n\nfile %s: read only \n\n####################\n", ctime(&cur), path_buffer);
-	}
-	// close with read only
-	if ( i->mask & IN_CLOSE_WRITE )
-	{
-		strcat(path_buffer, fullpath[i->wd]);
-		strcat(path_buffer, "/");
-		strcat(path_buffer, i->name);
-		dprintf(*t_fd, "####################\n%s\n\nfile %s: written \n\n####################\n", ctime(&cur), path_buffer);
-	}
-
-	// attribute changed
-	if ( i->mask & IN_ATTRIB)
-	{
-		strcat(path_buffer, fullpath[i->wd]);
-		strcat(path_buffer, "/");
-		strcat(path_buffer, i->name);
-		dprintf(*t_fd, "####################\n%s\n\nfile %s: attribute modified\n\n####################\n", ctime(&cur), path_buffer);
-	}
-	// file opened
-	if ( i->mask & IN_OPEN )
-	{
-		strcat(path_buffer, fullpath[i->wd]);
-		strcat(path_buffer, "/");
-		strcat(path_buffer, i->name);
-		dprintf(*t_fd, "####################\n%s\n\nfile %s: opened \n\n####################\n", ctime(&cur), path_buffer);
-	}
-	if ( i->mask & IN_ACCESS )
-	{
-		strcat(path_buffer, fullpath[i->wd]);
-		strcat(path_buffer, "/");
-		strcat(path_buffer, i->name);
-		dprintf(*t_fd, "####################\n%s\n\nfile %s: file accessed \n\n####################\n", ctime(&cur), path_buffer);
-
-	}
-	if ( i->mask & IN_DELETE)
-	{
-		strcat(path_buffer, fullpath[i->wd]);
-		strcat(path_buffer, "/");
-		strcat(path_buffer, i->name);
-		dprintf(*t_fd, "####################\n%s\n\nfile %s: file deleted\n\n####################\n", ctime(&cur), path_buffer);
-
-	}
-	if ( i->mask & IN_CREATE)
-	{
-		strcat(path_buffer, fullpath[i->wd]);
-		strcat(path_buffer, "/");
-		strcat(path_buffer, i->name);
-		dprintf(*t_fd, "####################\n%s\n\nfile %s: file created\n\n####################\n", ctime(&cur), path_buffer);
-
-	}
+void log_operation(const char *text, struct inotify_event *i, int *t_fd, char **fullpath ) {
 
 
-
-
-	memset(path_buffer, 0, sizeof(path_buffer));
-
+  time_t cur;
+  cur = time(NULL);
+  char path_buffer[4096];
+  strcat(path_buffer, fullpath[i->wd]);
+  strcat(path_buffer, "/");
+  strcat(path_buffer, i->name);
+  dprintf(*t_fd,
+          "####################\n%s\n\nfile %s: file "
+          "created\n\n####################\n",
+          ctime(&cur), path_buffer);
 }
+
+void display_event( struct inotify_event *i, int *t_fd, char **fullpath )
+{
+	if ( i->mask & IN_MODIFY )
+		log_operation("file modified", i, t_fd, fullpath);
+	if ( i->mask & IN_CLOSE_NOWRITE )
+		log_operation("file readonly", i, t_fd, fullpath);
+	if ( i->mask & IN_CLOSE_WRITE )
+		log_operation("file written", i, t_fd, fullpath);
+	if ( i->mask & IN_ATTRIB)
+		log_operation("attribute modified", i, t_fd, fullpath);
+	if ( i->mask & IN_OPEN )
+		log_operation("file opened", i, t_fd, fullpath);
+	if ( i->mask & IN_ACCESS )
+		log_operation("file accessed", i, t_fd, fullpath);
+	if ( i->mask & IN_DELETE)
+		log_operation("file deleted", i, t_fd, fullpath);
+	if ( i->mask & IN_CREATE)
+		log_operation("file created", i, t_fd, fullpath);
+}
+
+
